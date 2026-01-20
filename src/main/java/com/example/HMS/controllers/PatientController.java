@@ -9,23 +9,16 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Updated Patient Controller with DTOs
- *
- * Key improvements:
- * - Uses DTOs instead of entities
- * - Validation with @Valid
- * - Proper HTTP status codes with ResponseEntity
- * - CORS configured properly
- */
+
 @RestController
 @RequestMapping("/patient")
-@CrossOrigin(origins = "http://localhost:4200") // Configure as needed
+@CrossOrigin(origins = "http://localhost:4200")
 public class PatientController {
 
     @Autowired
@@ -36,13 +29,17 @@ public class PatientController {
 
     /**
      * Get all patients
-     * Returns: List of PatientDTO (not entities)
+     *
+     * Access: ADMIN, DOCTOR, STAFF
+     *
+     * Doctors need to see all patients for appointments
+     * Staff need to see all patients for administrative tasks
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'STAFF')")
     public ResponseEntity<List<PatientDTO>> getAllPatients() {
         List<Patient> patients = patientService.getAllPatients();
 
-        // Convert entities to DTOs
         List<PatientDTO> patientDTOs = patients.stream()
                 .map(mapper::toPatientDTO)
                 .collect(Collectors.toList());
@@ -53,10 +50,12 @@ public class PatientController {
     /**
      * Create new patient
      *
-     * @Valid triggers validation on PatientRequest
-     * Returns: 201 Created with PatientDTO
+     * Access: ADMIN, STAFF
+     *
+     * Only administrative roles can create patient records
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<PatientDTO> createPatient(@Valid @RequestBody PatientRequest request) {
         Patient patient = mapper.toPatientEntity(request);
         Patient savedPatient = patientService.createPatient(patient);
@@ -68,9 +67,13 @@ public class PatientController {
 
     /**
      * Get patient by ID
-     * Returns: 200 OK with PatientDTO or 404 Not Found (handled by GlobalExceptionHandler)
+     *
+     * Access: ADMIN, DOCTOR, STAFF
+     *
+     * All medical staff can view patient details
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'STAFF')")
     public ResponseEntity<PatientDTO> getPatientById(@PathVariable Long id) {
         Patient patient = patientService.getPatientById(id);
         return ResponseEntity.ok(mapper.toPatientDTO(patient));
@@ -78,9 +81,13 @@ public class PatientController {
 
     /**
      * Delete patient by ID
-     * Returns: 204 No Content (successful deletion with no body)
+     *
+     * Access: ADMIN only
+     *
+     * Only administrators can delete patient records (sensitive operation)
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deletePatientById(@PathVariable Long id) {
         patientService.deletePatientById(id);
         return ResponseEntity.noContent().build();
@@ -88,9 +95,13 @@ public class PatientController {
 
     /**
      * Update patient by ID
-     * Returns: 200 OK with updated PatientDTO
+     *
+     * Access: ADMIN, STAFF
+     *
+     * Administrative roles can update patient information
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<PatientDTO> updatePatientById(
             @PathVariable Long id,
             @Valid @RequestBody PatientRequest request) {
